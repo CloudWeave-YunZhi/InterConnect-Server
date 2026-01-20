@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft WebSocket API - 控制面板</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="login-screen" class="screen">
+        <div class="login-container">
+            <h1>🎮 Minecraft WebSocket API</h1>
+            <h2>控制面板登录</h2>
+            <form id="login-form">
+                <input type="password" id="super-key-input" placeholder="输入Admin Key或Server Key" required>
+                <button type="submit">登录</button>
+            </form>
+            <p class="error-message" id="login-error"></p>
+            <div class="login-info">
+                <p><strong>密钥类型说明：</strong></p>
+                <p>👑 <strong>Admin Key</strong> - 完全管理权限</p>
+                <p>🖥️ <strong>Server Key</strong> - 服务器管理权限</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard-screen" class="screen hidden">
+        <nav class="navbar">
+            <h1>🎮 Minecraft WebSocket API</h1>
+            <button id="logout-btn">退出登录</button>
+        </nav>
+
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>活跃连接</h3>
+                    <p class="stat-value" id="stat-connections">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>总密钥数</h3>
+                    <p class="stat-value" id="stat-total-keys">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>活跃SuperKeys</h3>
+                    <p class="stat-value" id="stat-super-keys">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>活跃普通Keys</h3>
+                    <p class="stat-value" id="stat-regular-keys">0</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>API密钥管理</h2>
+                    <button id="create-key-btn" class="btn-primary">创建新密钥</button>
+                </div>
+                <div id="keys-list" class="keys-list"></div>
+            </div>
+
+            <div class="section">
+                <h2>实时事件监控</h2>
+                <div id="events-list" class="events-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="create-key-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>创建新API密钥</h2>
+            <form id="create-key-form">
+                <label>名称 *</label>
+                <input type="text" id="key-name" required>
+                
+                <label>描述</label>
+                <textarea id="key-description"></textarea>
+                
+                <label>
+                    <input type="checkbox" id="key-is-super">
+                    创建为SuperKey
+                </label>
+                
+                <div class="modal-actions">
+                    <button type="button" id="cancel-create-btn" class="btn-secondary">取消</button>
+                    <button type="submit" class="btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="key-details-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>密钥详情</h2>
+            <div id="key-details-content"></div>
+            <div class="modal-actions">
+                <button id="close-details-btn" class="btn-secondary">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

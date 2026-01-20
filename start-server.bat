@@ -1,0 +1,3 @@
+@echo off
+echo Starting Minecraft WebSocket API Server...
+node src/server.js
