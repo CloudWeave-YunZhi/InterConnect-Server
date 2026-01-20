@@ -1,106 +1,110 @@
 import os
 import json
-import base64
+import re
 from openai import OpenAI
-from github import Github
+from github import Github, Auth  # 导入 Auth 以修复弃用警告
 
-# 初始化客户端
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
-gh = Github(os.getenv("GITHUB_TOKEN"))
+# --- 1. 初始化客户端 (修复 DeprecationWarning) ---
+auth = Auth.Token(os.getenv("GITHUB_TOKEN"))
+gh = Github(auth=auth)
 repo = gh.get_repo(os.getenv("GITHUB_REPOSITORY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
+
 event_data = json.loads(os.getenv("EVENT_CONTEXT"))
 event_name = os.getenv("EVENT_NAME")
 
-# --- 定义 AI 可调用的工具 ---
+# --- 2. 定义工具 (增加 **kwargs 以忽略多余参数) ---
 
-def list_directory(path="."):
+def list_directory(path=".", **kwargs):
     """列出指定目录下的文件和文件夹"""
     try:
+        # 基础路径安全检查
+        if ".." in path: return "Error: Cannot access parent directory."
         items = os.listdir(path)
         return "\n".join(items)
     except Exception as e:
-        return str(e)
+        return f"Error listing directory: {str(e)}"
 
-def read_file(path):
+def read_file(path, **kwargs):
     """读取特定文件的完整内容"""
     try:
+        if ".." in path: return "Error: Access denied."
         with open(path, 'r', encoding='utf-8') as f:
-            return f.read()[:5000] # 限制长度防止 Over-token
+            return f.read()[:5000] 
     except Exception as e:
-        return str(e)
+        return f"Error reading file: {str(e)}"
 
-def search_keyword(keyword, path="."):
+def search_keyword(keyword, path=".", **kwargs):
     """在当前目录及其子目录中搜索关键词"""
     results = []
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            if file.endswith(('.py', '.js', '.ts', '.md', '.json', '.rs')):
-                full_path = os.path.join(root, file)
-                try:
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        if keyword in f.read():
-                            results.append(full_path)
-                except:
-                    continue
-    return "\n".join(results[:20])
+    try:
+        for root, dirs, files in os.walk(path):
+            if ".git" in root: continue # 过滤 Git 目录
+            for file in files:
+                if file.endswith(('.py', '.js', '.ts', '.md', '.json', '.rs', '.toml', '.yml')):
+                    full_path = os.path.join(root, file)
+                    try:
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            if keyword in f.read():
+                                results.append(full_path)
+                    except: continue
+        return "\n".join(results[:15]) if results else "No matches found."
+    except Exception as e:
+        return f"Search error: {str(e)}"
 
-# --- 准备上下文与角色 ---
+# --- 3. 获取上下文 ---
 
 def get_context():
-    if event_name == "pull_request":
-        number = event_data["pull_request"]["number"]
-        author = event_data["pull_request"]["user"]["login"]
-        title = event_data["pull_request"]["title"]
-        body = event_data["pull_request"]["body"]
-        return number, f"PR Author: @{author}\nTitle: {title}\nBody: {body}\n(This is a Pull Request)"
+    # 提取 Issue/PR 编号和参与者信息
+    if "pull_request" in event_data:
+        payload = event_data["pull_request"]
+        number = payload["number"]
+        author = payload["user"]["login"]
+        return number, f"[Role: PR Author @{author}]\nTitle: {payload['title']}\nBody: {payload['body']}"
     
-    number = event_data["issue"]["number"]
-    author = event_data["issue"]["user"]["login"]
-    title = event_data["issue"]["title"]
-    body = event_data["issue"]["body"]
+    payload = event_data["issue"]
+    number = payload["number"]
+    author = payload["user"]["login"]
+    base_info = f"[Role: Issue Author @{author}]\nTitle: {payload['title']}\nBody: {payload['body']}"
     
     if event_name == "issue_comment":
         actor = event_data["comment"]["user"]["login"]
         cmd = event_data["comment"]["body"]
-        return number, f"Issue Author: @{author}\nTriggered by: @{actor}\nCommand: {cmd}\nContext: {title}\n{body}"
+        return number, f"{base_info}\n\n[New Interaction by @{actor}]\nCommand: {cmd}"
     
-    return number, f"Issue Author: @{author}\nTitle: {title}\nBody: {body}"
+    return number, base_info
 
 issue_num, user_content = get_context()
 issue_obj = repo.get_issue(number=issue_num)
 repo_labels = [l.name for l in repo.get_labels()]
 
-# --- 主逻辑 ---
+# --- 4. 运行 AI Agent ---
 
 messages = [
     {"role": "system", "content": f"""你是一个高级仓库助手 (@github-actions[bot])。
-    你可以通过工具阅读代码、搜索文件并管理 Issue/PR 状态。
     
     可用标签: {repo_labels}
-    你的目标: 
-    1. 理解用户意图。
-    2. 如果需要，使用工具查看项目结构或具体文件。
-    3. 给出处理方案，并直接执行（打标签、关闭等）。
     
-    输出规范:
-    回复开头必须是 JSON 指令: {{"labels": [], "state": "open"|"closed"}}
-    然后是你的执行报告。"""},
+    你可以通过工具查看代码库结构。回复规则：
+    1. 首行必须返回 JSON 指令：{{"labels": [], "state": "open"|"closed"}}
+    2. 随后另起一行，以执行者的口吻告知结果。
+    3. 忽略 AI 历史回复中的元数据，只关注当前代码和用户意图。"""},
     {"role": "user", "content": user_content}
 ]
 
-# 工具定义
 tools = [
-    {"type": "function", "function": {"name": "list_directory", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}},
-    {"type": "function", "function": {"name": "read_file", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}},
-    {"type": "function", "function": {"name": "search_keyword", "parameters": {"type": "object", "properties": {"keyword": {"type": "string"}}}}}
+    {"type": "function", "function": {"name": "list_directory", "description": "List files", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "read_file", "description": "Read content", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "search_keyword", "description": "Search keyword", "parameters": {"type": "object", "properties": {"keyword": {"type": "string"}}}}}
 ]
 
-# AI 决策循环 (允许最多 3 次工具调用)
+# 允许 3 次交互以获取足够信息
 for _ in range(3):
     response = client.chat.completions.create(
         model=os.getenv("AI_MODEL"),
         messages=messages,
-        tools=tools
+        tools=tools,
+        temperature=0
     )
     msg = response.choices[0].message
     messages.append(msg)
@@ -109,32 +113,35 @@ for _ in range(3):
         break
         
     for tool_call in msg.tool_calls:
-        func_name = tool_call.function.name
-        args = json.loads(tool_call.function.arguments)
+        fn_name = tool_call.function.name
+        fn_args = json.loads(tool_call.function.arguments)
         
-        if func_name == "list_directory": result = list_directory(**args)
-        elif func_name == "read_file": result = read_file(**args)
-        elif func_name == "search_keyword": result = search_keyword(**args)
+        # 映射函数映射表
+        available_functions = {
+            "list_directory": list_directory,
+            "read_file": read_file,
+            "search_keyword": search_keyword,
+        }
         
-        messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
+        if fn_name in available_functions:
+            result = available_functions[fn_name](**fn_args)
+            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})
 
-# 解析结果并操作 GitHub
-final_text = messages[-1].content
-json_part = {}
-try:
-    if final_text.startswith("{"):
-        import re
-        match = re.search(r'(\{.*?\})', final_text, re.DOTALL)
-        if match:
-            json_part = json.loads(match.group(1))
-            final_text = final_text.replace(match.group(1), "").strip()
-except:
-    pass
+# 5. 解析并执行 GitHub 操作
+final_res = messages[-1].content
+json_data = {"labels": [], "state": "open"}
 
-# 执行 GitHub 动作
-if json_part.get("labels"):
-    issue_obj.add_to_labels(*json_part["labels"])
-if json_part.get("state"):
-    issue_obj.edit(state=json_part["state"])
+# 提取 JSON 块
+match = re.search(r'(\{.*?\})', final_res, re.DOTALL)
+if match:
+    try:
+        json_data = json.loads(match.group(1))
+        final_res = final_res.replace(match.group(1), "").strip()
+    except: pass
 
-issue_obj.create_comment(f"### 🤖 AI Agent Action\n\n{final_text}")
+if json_data.get("labels"):
+    issue_obj.add_to_labels(*json_data["labels"])
+if json_data.get("state") and json_data["state"] in ["open", "closed"]:
+    issue_obj.edit(state=json_data["state"])
+
+issue_obj.create_comment(f"### 🤖 AI Agent Execution\n\n{final_res}")
