@@ -34,30 +34,30 @@ app.get('/', (req, res) => {
     });
 });
 
-app.use('/manage/keys', verifyApiKey(db), requireAdminKey, createKeysRouter(db, requireAdminKey));
+app.use('/manage/keys', verifyApiKey(db), createKeysRouter(db, requireAdminKey));
 app.use('/api/events', verifyApiKey(db), requireAnyKey, createEventsRouter(db, manager, requireAnyKey));
 app.use('/health', createHealthRouter(db, manager));
 
 server.on('upgrade', async (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
-    
+
     if (url.pathname === '/ws') {
         const apiKey = url.searchParams.get('api_key');
-        
+
         if (!apiKey) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
             socket.destroy();
             return;
         }
-        
+
         const result = await db.verifyApiKey(apiKey);
-        
+
         if (!result) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
             socket.destroy();
             return;
         }
-        
+
         wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request, result);
         });
@@ -68,22 +68,22 @@ server.on('upgrade', async (request, socket, head) => {
 
 wss.on('connection', (ws, request, apiKeyInfo) => {
     manager.connect(ws, apiKeyInfo.id);
-    
+
     ws.on('message', (data) => {
         try {
             const msg = JSON.parse(data.toString());
-            
+
             if (msg.type === 'ping') {
                 ws.send(JSON.stringify({ type: 'pong' }));
             }
         } catch (error) {
         }
     });
-    
+
     ws.on('close', () => {
         manager.disconnect(ws);
     });
-    
+
     ws.on('error', () => {
         manager.disconnect(ws);
     });
@@ -92,11 +92,11 @@ wss.on('connection', (ws, request, apiKeyInfo) => {
 async function startServer() {
     console.log('🚀 启动Minecraft WebSocket API服务器...');
     console.log('='.repeat(50));
-    
+
     await db.init();
-    
+
     const adminKeyInfo = await db.ensureInitialAdminKey();
-    
+
     if (adminKeyInfo) {
         console.log('='.repeat(60));
         console.log('重要: 已生成新的Admin Key!');
@@ -109,7 +109,7 @@ async function startServer() {
     } else {
         console.log('信息: 已找到现有Admin Key或Admin Key检查已执行。');
     }
-    
+
     server.listen(PORT, HOST, () => {
         console.log(`服务器地址: http://${HOST}:${PORT}`);
         console.log(`WebSocket端点: ws://${HOST}:${PORT}/ws`);
