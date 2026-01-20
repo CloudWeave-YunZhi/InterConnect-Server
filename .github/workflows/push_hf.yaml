@@ -1,0 +1,47 @@
+name: Sync to Hugging Face (Exclude README)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Sync and Push to HF
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # 1. 配置 Git 用户信息
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          # 2. 克隆 Hugging Face 仓库到临时目录 'hf_repo'
+          # 注意：请将 <USERNAME>/<REPO_NAME> 替换为你的路径
+          git clone https://x-access-token:$HF_TOKEN@huggingface.co/spaces/StarrySkyWorld/InterConnectServer hf_repo
+          
+          # 3. 使用 rsync 同步文件
+          # --exclude='.git/' : 不同步 git 历史
+          # --exclude='README.md' : 不同步 README 文件
+          # -av : 归档模式并显示详细过程
+          # --delete : 如果 GitHub 删除了某文件，HF 端也相应删除（README 除外）
+          rsync -av --exclude='.git/' --exclude='README.md' ./ hf_repo/
+          
+          # 4. 进入临时目录提交并推送
+          cd hf_repo
+          git add .
+          
+          # 检查是否有内容变化，防止空提交导致报错
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Sync from GitHub (excluding README)"
+            git push origin main
+          else
+            echo "No changes to sync."
+          fi
