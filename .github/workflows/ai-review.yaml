@@ -1,4 +1,4 @@
-name: AI Repository Assistant
+name: AI Repository Agent (Python Tools)
 
 on:
   pull_request:
@@ -9,11 +9,11 @@ on:
     types: [created]
 
 jobs:
-  ai-assistant:
+  ai-agent:
     if: |
       github.event_name == 'pull_request' || 
       github.event_name == 'issues' || 
-      startsWith(github.event.comment.body, '[use-ai]')
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '[use-ai]'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,120 +23,24 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Prepare Context
-        id: prep
-        run: |
-          # 提取基本信息
-          ISSUE_AUTHOR="${{ github.event.issue.user.login || github.event.pull_request.user.login }}"
-          CURRENT_ACTOR="${{ github.actor }}"
-          
-          echo "### METADATA ###" > content.txt
-          echo "Issue/PR Author: @$ISSUE_AUTHOR" >> content.txt
-          echo "Instruction triggered by: @$CURRENT_ACTOR" >> content.txt
-          echo "Assistant Identity: @github-actions[bot]" >> content.txt
-          echo -e "------------------\n" >> content.txt
-
-          if [ "${{ github.event_name }}" == "issue_comment" ]; then
-            echo "### NEW COMMAND FROM @$CURRENT_ACTOR ###" >> content.txt
-            echo "Comment: ${{ github.event.comment.body }}" >> content.txt
-            echo -e "\n### ORIGINAL CONTEXT ###" >> content.txt
-            echo "Title: ${{ github.event.issue.title }}" >> content.txt
-            echo "Description: ${{ github.event.issue.body }}" >> content.txt
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "### NEW PULL REQUEST FROM @$ISSUE_AUTHOR ###" >> content.txt
-            git fetch origin ${{ github.event.pull_request.base.ref }}
-            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > pr_diff.txt
-            cat pr_diff.txt >> content.txt
-          else
-            echo "### NEW ISSUE FROM @$ISSUE_AUTHOR ###" >> content.txt
-            echo "Title: ${{ github.event.issue.title }}" >> content.txt
-            echo "Body: ${{ github.event.issue.body }}" >> content.txt
-          fi
-
-          echo "number=${{ github.event.issue.number || github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          echo "type=${{ github.event_name }}" >> $GITHUB_OUTPUT
-
-      - name: AI Action Execution
-        uses: actions/github-script@v7
-        env:
-          API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          MODEL: ${{ secrets.AI_MODEL }}
-          ISSUE_NUMBER: ${{ steps.prep.outputs.number }}
         with:
-          script: |
-            const fs = require('fs');
-            const content = fs.readFileSync('content.txt', 'utf8');
+          fetch-depth: 0
 
-            const { data: repoLabels } = await github.rest.issues.listLabelsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const labelNames = repoLabels.map(l => l.name);
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-            const prompt = `你是一个拥有自主权的仓库助手 (@github-actions[bot])。
-            你需要根据提供的【METADATA】区分对话中的不同角色。
-            
-            角色指南：
-            1. Issue/PR Author: 任务的发起者。
-            2. Instruction triggered by: 当前向你下达指令的人。如果是 Author 且内容包含 "[use-ai]"，说明他在请求你介入。
-            3. Assistant Identity: 这是你自己。请不要审视或评价你自己的历史回复。
+      - name: Install Dependencies
+        run: |
+          pip install openai PyGithub
 
-            你的权力：
-            - 根据 Issue 内容的质量自动打标签（可选：${labelNames.join(", ")}）。
-            - 如果内容是无意义的测试、违反规范或已解决，请直接关闭它。
-            - 你的语气应该是果断的执行者，而不是卑微的助理。
-
-            输出要求（严格 JSON 第一行）：
-            {"labels": ["label_name"], "state": "closed" | "open"}
-            然后另起一行说明你的处理逻辑。`;
-
-            try {
-              const response = await fetch(`${process.env.BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${process.env.API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  model: process.env.MODEL,
-                  messages: [{ role: "user", content: prompt + "\n\n内容如下：\n" + content }],
-                  temperature: 0.1 // 降低随机性，增强逻辑判断
-                })
-              });
-
-              const data = await response.json();
-              const fullText = data.choices[0].message.content;
-
-              const jsonMatch = fullText.match(/^\{.*?\}/);
-              let config = { labels: [], state: "open" };
-              let commentBody = fullText;
-
-              if (jsonMatch) {
-                config = JSON.parse(jsonMatch[0]);
-                commentBody = fullText.replace(jsonMatch[0], "").trim();
-              }
-
-              const issueParams = {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parseInt(process.env.ISSUE_NUMBER)
-              };
-
-              // 执行打标签
-              if (config.labels && config.labels.length > 0) {
-                await github.rest.issues.addLabels({ ...issueParams, labels: config.labels });
-              }
-
-              // 执行状态变更
-              if (config.state) {
-                await github.rest.issues.update({ ...issueParams, state: config.state });
-              }
-
-              // 发表回复
-              await github.rest.issues.createComment({
-                ...issueParams,
-                body: `### 🤖 AI Assistant Action\n\n${commentBody}`
-              });
-
-            } catch (err) {
-              core.setFailed(err.message);
-            }
+      - name: Run AI Agent
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_CONTEXT: ${{ toJson(github.event) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: python .github/scripts/ai_agent.py
