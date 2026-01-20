@@ -1,13 +1,20 @@
-name: AI PR & Issue Assistant with Auto-Label
+name: AI Repository Assistant
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
   issues:
     types: [opened]
+  issue_comment:
+    types: [created] # 支持通过评论触发
 
 jobs:
   ai-assistant:
+    # 仅在：1. 新开 PR/Issue 2. 评论以 [use-ai] 开头时运行
+    if: |
+      github.event_name == 'pull_request' || 
+      github.event_name == 'issues' || 
+      startsWith(github.event.comment.body, '[use-ai]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,18 +28,27 @@ jobs:
       - name: Prepare Context
         id: prep
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            git fetch origin ${{ github.base_ref }}
-            git diff origin/${{ github.base_ref }}...HEAD > input_content.txt
-            echo "type=PR" >> $GITHUB_OUTPUT
-            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          # 判断是 PR 还是 Issue
+          if [ "${{ github.event.pull_request }}" != "" ]; then
+            EVENT_TYPE="PR"
+            ISSUE_NUMBER="${{ github.event.pull_request.number }}"
+            git fetch origin ${{ github.event.pull_request.base.ref }}
+            git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > content.txt
           else
-            echo -e "Title: ${{ github.event.issue.title }}\n\n${{ github.event.issue.body }}" > input_content.txt
-            echo "type=Issue" >> $GITHUB_OUTPUT
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            EVENT_TYPE="Issue"
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+            # 如果是评论触发，获取评论内容作为补充指令
+            if [ "${{ github.event_name }}" == "issue_comment" ]; then
+              echo "Command: ${{ github.event.comment.body }}" > content.txt
+              echo -e "\nOriginal Content:\n${{ github.event.issue.title }}\n${{ github.event.issue.body }}" >> content.txt
+            else
+              echo -e "Title: ${{ github.event.issue.title }}\n\n${{ github.event.issue.body }}" > content.txt
+            fi
           fi
+          echo "type=$EVENT_TYPE" >> $GITHUB_OUTPUT
+          echo "number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
 
-      - name: AI Processing & Labeling
+      - name: AI Action Execution
         uses: actions/github-script@v7
         env:
           API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -40,42 +56,38 @@ jobs:
           MODEL: ${{ secrets.AI_MODEL }}
           EVENT_TYPE: ${{ steps.prep.outputs.type }}
           ISSUE_NUMBER: ${{ steps.prep.outputs.number }}
-          ENABLE_AUTO_LABEL: "true" # 设置为 "false" 则彻底关闭自动打标签功能
         with:
           script: |
             const fs = require('fs');
-            const content = fs.readFileSync('input_content.txt', 'utf8');
-            if (!content.trim()) return;
+            const content = fs.readFileSync('content.txt', 'utf8');
 
-            // 1. 获取仓库现有的所有 Labels
+            // 1. 获取现有 Labels
             const { data: repoLabels } = await github.rest.issues.listLabelsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
             const labelNames = repoLabels.map(l => l.name);
 
-            // 2. 构建针对标签的 Prompt 
-            let labelInstruction = "";
-            if (process.env.ENABLE_AUTO_LABEL === "true") {
-              labelInstruction = `
-            请从以下现有的标签列表中选择最合适的标签（可多选），仅从列表中选择：[${labelNames.join(", ")}]。
-            如果你认为不需要打标签，请返回空数组。
-            请在回复的最开头以 JSON 格式输出你的选择，格式如下：
-            {"suggested_labels": ["label1", "label2"]}
-            然后另起一行开始你的评论分析。`;
-            }
-
-            const prompt = process.env.EVENT_TYPE === 'PR' 
-              ? `你是一位资深工程师。请审查以下 PR 的代码改动，指出潜在 Bug 和改进点。${labelInstruction}\n\nDiff内容：\n${content}`
-              : `你是一位开源项目维护者。请分析以下 Issue 并给出建议。${labelInstruction}\n\nIssue内容：\n${content}`;
+            // 2. 角色设定：从“建议者”转变为“执行者”
+            const prompt = `你是一个自动化的仓库助手。你被授权管理该仓库的 Issues 和 PR。
+            你的任务：分析内容，打上标签，并决定是否关闭或保持开启。
+            
+            仓库现有标签：[${labelNames.join(", ")}]。
+            
+            输出要求：
+            必须在回复的第一行输出 JSON 格式的操作指令：
+            {"labels": ["label1"], "state": "closed" | "open"}
+            
+            随后另起一行，以助手的身份简洁地说明你执行的操作和理由。不要说“我建议”，要说“我已执行”。
+            
+            当前环境：${process.env.EVENT_TYPE}
+            内容详情：
+            ${content}`;
 
             try {
               const response = await fetch(`${process.env.BASE_URL}/chat/completions`, {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${process.env.API_KEY}`,
-                  'Content-Type': 'application/json'
-                },
+                headers: { 'Authorization': `Bearer ${process.env.API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   model: process.env.MODEL,
                   messages: [{ role: "user", content: prompt }],
@@ -86,40 +98,39 @@ jobs:
               const data = await response.json();
               const fullText = data.choices[0].message.content;
 
-              // 3. 解析标签和正文
+              // 3. 解析指令
+              const jsonMatch = fullText.match(/^\{.*?\}/);
+              let config = { labels: [], state: "open" };
               let commentBody = fullText;
-              let labelsToAdd = [];
 
-              if (process.env.ENABLE_AUTO_LABEL === "true") {
-                const jsonMatch = fullText.match(/^\{.*?\}/); // 匹配开头的 JSON
-                if (jsonMatch) {
-                  try {
-                    const labelData = JSON.parse(jsonMatch[0]);
-                    labelsToAdd = labelData.suggested_labels || [];
-                    commentBody = fullText.replace(jsonMatch[0], "").trim();
-                  } catch (e) {
-                    console.log("Failed to parse labels JSON");
-                  }
-                }
+              if (jsonMatch) {
+                config = JSON.parse(jsonMatch[0]);
+                commentBody = fullText.replace(jsonMatch[0], "").trim();
               }
 
-              // 4. 发布评论
-              await github.rest.issues.createComment({
+              const issueParams = {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: parseInt(process.env.ISSUE_NUMBER),
-                body: `### 🤖 AI ${process.env.EVENT_TYPE === 'PR' ? 'Review' : 'Assistant'}\n\n${commentBody}`
+                issue_number: parseInt(process.env.ISSUE_NUMBER)
+              };
+
+              // 4. 执行操作：打标签
+              if (config.labels && config.labels.length > 0) {
+                await github.rest.issues.addLabels({ ...issueParams, labels: config.labels });
+              }
+
+              // 5. 执行操作：修改状态 (Close/Reopen)
+              if (config.state) {
+                await github.rest.issues.update({ ...issueParams, state: config.state });
+              }
+
+              // 6. 发布执行报告
+              await github.rest.issues.createComment({
+                ...issueParams,
+                body: `### 🤖 AI Assistant Action\n\n${commentBody}`
               });
 
-              // 5. 自动打标签（如果有建议的标签）
-              if (labelsToAdd.length > 0) {
-                await github.rest.issues.addLabels({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: parseInt(process.env.ISSUE_NUMBER),
-                  labels: labelsToAdd
-                });
-              }
             } catch (err) {
+              console.error(err);
               core.setFailed(err.message);
             }
