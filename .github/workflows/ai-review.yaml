@@ -1,0 +1,87 @@
+name: AI PR & Issue Helper
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issues:
+    types: [opened] # 当新 Issue 创建时触发
+
+jobs:
+  ai-assistant:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Context
+        id: prep
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > input_content.txt
+            echo "type=PR" >> $GITHUB_OUTPUT
+          else
+            echo "${{ github.event.issue.title }}\n\n${{ github.event.issue.body }}" > input_content.txt
+            echo "type=Issue" >> $GITHUB_OUTPUT
+          fi
+
+      - name: AI Processing
+        uses: actions/github-script@v7
+        env:
+          API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          MODEL: ${{ secrets.AI_MODEL }}
+          EVENT_TYPE: ${{ steps.prep.outputs.type }}
+        with:
+          script: |
+            const fs = require('fs');
+            const content = fs.readFileSync('input_content.txt', 'utf8');
+            if (!content.trim()) return;
+
+            // 根据类型定制 Prompt
+            const prompt = process.env.EVENT_TYPE === 'PR' 
+              ? `你是一位资深工程师。请审查以下 PR 的代码改动，指出潜在 Bug 和改进点：\n\n${content}`
+              : `你是一位开源项目维护者。请分析以下 Issue 并给出建议或解决方案：\n\n${content}`;
+
+            try {
+              const response = await fetch(`${process.env.BASE_URL}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: process.env.MODEL,
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.3
+                })
+              });
+
+              const data = await response.json();
+              const result = data.choices[0].message.content;
+              const header = process.env.EVENT_TYPE === 'PR' ? "### 🤖 AI Code Review" : "### 🤖 AI Issue Assistant";
+
+              if (process.env.EVENT_TYPE === 'PR') {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.pull_request.number,
+                  body: `${header}\n\n${result}`
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.issue.number,
+                  body: `${header}\n\n${result}`
+                });
+              }
+            } catch (err) {
+              core.setFailed(err.message);
+            }
