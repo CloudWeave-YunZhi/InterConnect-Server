@@ -1,4 +1,4 @@
-name: AI Repository Assistant (Role-Aware)
+name: AI Repository Assistant
 
 on:
   pull_request:
