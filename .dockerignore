@@ -1,0 +1,7 @@
+src
+node_modules
+readme.md
+tsconfig.json
+eslint.config.js
+data
+.git

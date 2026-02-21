@@ -1,0 +1,88 @@
+(2) 注册请求 (Client -> Server)
+连接成功后，客户端必须在 5 秒内发送此数据包，否则会被服务器踢出。
+
+JSON
+{
+  "type": "register",
+  "serverId": "survival-01",
+  "serverName": "生存一区"
+}
+(3) 注册确认 (Server -> Client)
+服务端验证并保存节点信息后返回。
+
+JSON
+{
+  "type": "registered",
+  "status": "ok"
+}
+2. 业务阶段 (Business Events)
+所有业务数据包建议包含 targetId（通常为 "all" 广播或特定 serverId）。
+
+(1) 玩家进服 (player_join)
+JSON
+{
+  "type": "player_join",
+  "targetId": "all",
+  "msg": {
+    "playerName": "Steve",
+    "uuid": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+(2) 玩家退服 (player_quit)
+JSON
+{
+  "type": "player_quit",
+  "targetId": "all",
+  "msg": {
+    "playerName": "Steve"
+  }
+}
+(3) 玩家死亡 (player_death)
+JSON
+{
+  "type": "player_death",
+  "targetId": "all",
+  "msg": {
+    "playerName": "Steve",
+    "reason": "fell from a high place",
+    "location": "world:100,64,200"
+  }
+}
+(4) 跨服消息 (player_message)
+用于玩家之间的普通聊天转发。
+
+JSON
+{
+  "type": "player_message",
+  "targetId": "all",
+  "msg": {
+    "playerName": "Steve",
+    "text": "大家伙，我是从一区来的！"
+  }
+}
+(5) AI 聊天 (player_chat)
+专门用于触发 AI 回复。
+
+JSON
+{
+  "type": "player_chat",
+  "targetId": "all",
+  "msg": {
+    "playerName": "Steve",
+    "text": "Gemini，这个服务器怎么玩？"
+  }
+}
+3. 服务端转发后的数据结构 (Server -> Client)
+当服务端转发消息给其他节点时，会自动添加来源信息，客户端收到后应根据 fromName 展示：
+
+JSON
+{
+  "fromId": "survival-01",
+  "fromName": "生存一区",
+  "type": "player_message",
+  "msg": {
+    "playerName": "Steve",
+    "text": "大家伙，我是从一区来的！"
+  },
+  "time": 1708340000000
+}
