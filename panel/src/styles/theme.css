@@ -1,0 +1,95 @@
+/* 绿色/橙色主题配色 - 避免蓝紫 */
+:root {
+  /* 主色调 - 森林绿 */
+  --primary-color: #27ae60;
+  --primary-light: #52d681;
+  --primary-dark: #1e8449;
+  --primary-bg: #e8f8f0;
+  
+  /* 辅助色 - 暖橙色 */
+  --accent-color: #e67e22;
+  --accent-light: #f39c12;
+  --accent-dark: #d35400;
+  --accent-bg: #fef3e2;
+  
+  /* 状态色 */
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --danger-color: #e74c3c;
+  --info-color: #17a2b8;
+  
+  /* 中性色 */
+  --text-primary: #2c3e50;
+  --text-regular: #5d6d7e;
+  --text-secondary: #95a5a6;
+  --border-color: #e1e8ed;
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  
+  /* 渐变 */
+  --gradient-primary: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  --gradient-accent: linear-gradient(135deg, #e67e22 0%, #f39c12 100%);
+}
+
+/* Element Plus 主题覆盖 */
+.el-button--primary {
+  --el-button-bg-color: var(--primary-color) !important;
+  --el-button-border-color: var(--primary-color) !important;
+  --el-button-hover-bg-color: var(--primary-dark) !important;
+  --el-button-hover-border-color: var(--primary-dark) !important;
+}
+
+.el-button--success {
+  --el-button-bg-color: var(--success-color) !important;
+  --el-button-border-color: var(--success-color) !important;
+}
+
+.el-button--warning {
+  --el-button-bg-color: var(--accent-color) !important;
+  --el-button-border-color: var(--accent-color) !important;
+}
+
+.el-tag--success {
+  --el-tag-bg-color: var(--primary-bg) !important;
+  --el-tag-border-color: var(--primary-light) !important;
+  --el-tag-text-color: var(--primary-dark) !important;
+}
+
+.el-tag--warning {
+  --el-tag-bg-color: var(--accent-bg) !important;
+  --el-tag-border-color: var(--accent-light) !important;
+  --el-tag-text-color: var(--accent-dark) !important;
+}
+
+.el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
+  background-color: var(--primary-color) !important;
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--primary-color) inset !important;
+}
+
+.el-menu-item.is-active {
+  color: var(--primary-color) !important;
+  background-color: var(--primary-bg) !important;
+}
+
+.el-menu-item:hover {
+  color: var(--primary-color) !important;
+}
+
+.el-tabs__item.is-active {
+  color: var(--primary-color) !important;
+}
+
+.el-tabs__active-bar {
+  background-color: var(--primary-color) !important;
+}
+
+.el-loading-spinner .el-loading-text {
+  color: var(--primary-color) !important;
+}
+
+.el-loading-spinner .path {
+  stroke: var(--primary-color) !important;
+}

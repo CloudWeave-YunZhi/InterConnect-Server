@@ -15,6 +15,11 @@ async function initConfig() {
                     'enable': true,
                     'level': 'info',
                     'pretty': true
+                },
+                'ratelimit': {
+                    'windowMs': 5,
+                    'limit': 100,
+                    'message': 'too many request'
                 }
             };
             await fs.outputJsonSync(configFile, configData, { spaces: 4 });

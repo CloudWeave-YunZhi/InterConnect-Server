@@ -7,6 +7,7 @@ import { setupWebSocket } from './websocket.js';
 import { httplog } from './middleware/httplog.js';
 import { createRouters } from './routers.js';
 import path from 'path';
+import history from 'connect-history-api-fallback';
 export const app = express();
 export async function startServer() {
     try {
@@ -28,6 +29,9 @@ export async function startServer() {
             }
         });
         createRouters();
+        app.use(history({
+            index: '/admin/index.html'
+        }));
         app.use('/admin', express.static(path.join(process.cwd(), 'admin')));
         app.use((err, req, res, next) => {
             logger.error({ err }, 'Server error');

@@ -20,9 +20,10 @@ const  limiter = ratelimit({
 });
 
 export async function  createRouters(): Promise<void> {
+    // 管理路由
     app.use('/manager', limiter, adminAuth(), createmgr);
 
-
+    // 登录路由
     app.post('/login', limiter, (req: Request, res: Response) => {
         // 1. 检查 body 是否被解析（防止中间件挂载失败或 Content-Type 不对）
         if (!req.body || typeof req.body !== 'object') {

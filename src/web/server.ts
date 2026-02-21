@@ -7,6 +7,7 @@ import { setupWebSocket } from './websocket.js';
 import { httplog } from './middleware/httplog.js';
 import { createRouters } from './routers.js';
 import path from 'path';
+import history from 'connect-history-api-fallback';
 
 export const app = express();
 
@@ -39,6 +40,11 @@ export async function startServer(): Promise<void> {
         // 挂载路由.jpg
         createRouters();
 
+        // 把/admin下的所有请求重写到/admin/index.html
+        app.use(history({
+            index: '/admin/index.html'
+        }));
+        // 挂载面板静态目录
         app.use('/admin', express.static(path.join(process.cwd(), 'admin')));
         app.use((err: any, req: Request, res: Response, next: NextFunction) => {
             logger.error({ err }, 'Server error');
