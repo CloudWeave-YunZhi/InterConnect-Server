@@ -28,7 +28,7 @@ docker run -d \
   --name interconnect-server \ #容器名字
   -p 8000:8000 \ #暴露8000端口
   -v $(pwd)/data:/app/data \ #挂载数据目录
-  fasfuah/interconnect-server:beta
+  fasfuah/interconnect-server:latest
 ```
 ---
 
