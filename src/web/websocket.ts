@@ -26,6 +26,37 @@ const EVENTS = new Set(['player_join', 'player_quit', 'player_death', 'player_ch
 // Setup
 // ---------------------------------------------------------------------------
 export function setupWebSocket(wss: WebSocketServer): void {
+    
+    /**
+     * 心跳保活定时器
+     * 每 30 秒探测一次所有连接的节点
+     */
+    const heartbeatInterval = setInterval(() => {
+        activeNodes.forEach((ws, uuid) => {
+            if (ws.isAlive === false) {
+                logger.warn({ uuid, name: ws.servername }, 'Node heartbeat timeout, terminating...');
+                // 如果节点在 30 秒内没有任何响应，则强制断开并清理
+                activeNodes.delete(uuid);
+                setNodeOnline.run(uuid); // 确保数据库状态更新
+                return ws.terminate();
+            }
+
+            // 先标记为假，等待客户端响应来重置
+            ws.isAlive = false;
+
+            // 1. 发送协议层 Ping (标准 WebSocket 行为)
+            ws.ping();
+
+            // 2. 发送业务层心跳包 (适配 Java 插件的 onMessage 逻辑)
+            // 插件收到此 JSON 后会触发 onMessage，从而将插件侧的 isAlive 设为 true
+            ws.send(JSON.stringify({
+                type: 'heartbeat',
+                time: Date.now(),
+                msg: { status: 'ping' }
+            }));
+        });
+    }, 30000);
+
     wss.on('connection', (ws: ExtWebSocket, req: IncomingMessage) => {
         const clientIp = req.socket.remoteAddress;
 
@@ -62,16 +93,22 @@ export function setupWebSocket(wss: WebSocketServer): void {
 
         logger.info({ uuid, name: node.servername, ip: clientIp }, 'Node connected');
 
-        ws.on('pong', () => { ws.isAlive = true; });
+        // 监听 Pong 响应
+        ws.on('pong', () => { 
+            ws.isAlive = true; 
+        });
 
         // --- Messages ---
         ws.on('message', (rawData) => {
+            // 收到任何消息说明客户端还活着
+            ws.isAlive = true;
+
             try {
                 const packet = JSON.parse(rawData.toString());
                 const { type, targetId, msg } = packet;
 
+                // 过滤掉不属于业务事件的消息（如客户端发回的心跳响应）
                 if (!EVENTS.has(type)) return;
-
 
                 const forwardData = JSON.stringify({
                     fromId:   ws.uuid,
@@ -106,15 +143,24 @@ export function setupWebSocket(wss: WebSocketServer): void {
             setNodeOffline.run(ws.uuid);
             logger.info({ uuid: ws.uuid, name: ws.servername }, 'Node disconnected');
         });
+
+        ws.on('error', (err) => {
+            logger.error({ err, uuid: ws.uuid }, 'WS socket error');
+        });
+    });
+
+    // 当 WSS 关闭时清理定时器
+    wss.on('close', () => {
+        clearInterval(heartbeatInterval);
     });
 }
+
 /**
  * 强制踢出指定 servername 的节点
  */
 export function kickNodeByServername(servername: string): boolean {
     let targetUuid: string | null = null;
 
-    // 遍历当前的在线列表
     for (const [uuid, ws] of activeNodes.entries()) {
         if (ws.servername === servername) {
             targetUuid = uuid;
@@ -125,13 +171,13 @@ export function kickNodeByServername(servername: string): boolean {
     if (targetUuid) {
         const ws = activeNodes.get(targetUuid);
         if (ws) {
-            ws.terminate(); // 暴力切断
+            ws.terminate(); 
             activeNodes.delete(targetUuid);
             setNodeOffline.run(targetUuid);
-            logger.info({ servername, uuid: targetUuid }, 'Old node connection kicked before key update');
+            logger.info({ servername, uuid: targetUuid }, 'Old node connection kicked');
             return true;
         }
     }
     
-    return false; // 不在线，直接跳过
+    return false;
 }

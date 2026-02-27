@@ -7,6 +7,23 @@ const setNodeOnline = db.prepare('UPDATE nodes SET stat = 1 WHERE uuid = ?');
 const setNodeOffline = db.prepare('UPDATE nodes SET stat = 0 WHERE uuid = ?');
 const EVENTS = new Set(['player_join', 'player_quit', 'player_death', 'player_chat', 'player_message']);
 export function setupWebSocket(wss) {
+    const heartbeatInterval = setInterval(() => {
+        activeNodes.forEach((ws, uuid) => {
+            if (ws.isAlive === false) {
+                logger.warn({ uuid, name: ws.servername }, 'Node heartbeat timeout, terminating...');
+                activeNodes.delete(uuid);
+                setNodeOnline.run(uuid);
+                return ws.terminate();
+            }
+            ws.isAlive = false;
+            ws.ping();
+            ws.send(JSON.stringify({
+                type: 'heartbeat',
+                time: Date.now(),
+                msg: { status: 'ping' }
+            }));
+        });
+    }, 30000);
     wss.on('connection', (ws, req) => {
         const clientIp = req.socket.remoteAddress;
         const uuid = req.headers['x-uuid'];
@@ -33,8 +50,11 @@ export function setupWebSocket(wss) {
         activeNodes.set(uuid, ws);
         setNodeOnline.run(uuid);
         logger.info({ uuid, name: node.servername, ip: clientIp }, 'Node connected');
-        ws.on('pong', () => { ws.isAlive = true; });
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
         ws.on('message', (rawData) => {
+            ws.isAlive = true;
             try {
                 const packet = JSON.parse(rawData.toString());
                 const { type, targetId, msg } = packet;
@@ -71,6 +91,12 @@ export function setupWebSocket(wss) {
             setNodeOffline.run(ws.uuid);
             logger.info({ uuid: ws.uuid, name: ws.servername }, 'Node disconnected');
         });
+        ws.on('error', (err) => {
+            logger.error({ err, uuid: ws.uuid }, 'WS socket error');
+        });
+    });
+    wss.on('close', () => {
+        clearInterval(heartbeatInterval);
     });
 }
 export function kickNodeByServername(servername) {
@@ -87,7 +113,7 @@ export function kickNodeByServername(servername) {
             ws.terminate();
             activeNodes.delete(targetUuid);
             setNodeOffline.run(targetUuid);
-            logger.info({ servername, uuid: targetUuid }, 'Old node connection kicked before key update');
+            logger.info({ servername, uuid: targetUuid }, 'Old node connection kicked');
             return true;
         }
     }
