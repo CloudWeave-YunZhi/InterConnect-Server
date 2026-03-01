@@ -31,11 +31,9 @@ program
  |_____\\_____|   |_____/ \\___|_|    \\_/ \\___|_|
           version: ${version}
  `);
-        console.debug('\x1b[36m┌────────────────────────────────────────────────────────┐\x1b[0m');
-        console.debug('\x1b[36m│\x1b[0m  \x1b[33m💡 温馨提示 / Tip\x1b[0m                                     \x1b[36m│\x1b[0m');
-        console.debug('\x1b[36m│\x1b[0m  首次运行请使用 \x1b[1m set-admin \x1b[0m 参数设置 admin Token       \x1b[36m│\x1b[0m');
-        console.debug('\x1b[36m│\x1b[0m  First time? Use \x1b[1m set-admin \x1b[0m to config admin  token.   \x1b[36m│\x1b[0m');
-        console.debug('\x1b[36m└────────────────────────────────────────────────────────┘\x1b[0m');
+        console.debug('\n\x1b[33m💡 温馨提示 / Tip\x1b[0m ');
+        console.debug('首次运行请使用 \x1b[1m set-admin \x1b[0m 参数设置 admin Token');
+        console.debug('First time? Use \x1b[1m set-admin \x1b[0m to config admin  token. \n');
         await startServer();
     });
 
