@@ -1,26 +1,26 @@
 import express from 'express';
-import { config } from '../utils/initconfig.js';
-import { logger } from '../utils/log.js';
+import { config } from './utils/initconfig.js';
+import { logger } from './utils/log.js';
 import { createServer } from 'http';
-import { WebSocketManager } from './websocket.js';
-import { httplog } from '../middleware/httplog.js';
-import { NodeService } from '../services/nodeService.js';
-import { adminAuth } from '../middleware/auth.js';
-import createmgr from '../router/managerRouter.js';
-import { loginRouter } from '../router/loginRouter.js';
+import { WebSocketManager } from './services/wsService.js';
+import { httplog } from './middleware/httplog.js';
+import { createNodeService } from './services/nodeService.js';
+import { adminAuth } from './middleware/auth.js';
+import createmgr from './router/managerRouter.js';
+import { loginRouter } from './router/loginRouter.js';
 import ratelimit from 'express-rate-limit';
 import { SqliteStore } from 'rate-limit-sqlite';
 import path from 'path';
 import history from 'connect-history-api-fallback';
 export const app = express();
+const server = createServer(app);
+const wsManager = new WebSocketManager(server);
+export const NodeService = createNodeService(wsManager);
 export async function startServer() {
     try {
         app.set('trust proxy', 1);
         httplog();
         app.use(express.json());
-        const server = createServer(app);
-        const wsManager = new WebSocketManager(server);
-        NodeService.setWebSocketManager(wsManager);
         const limiter = ratelimit({
             windowMs: config.ratelimit.windowMs * 60 * 1000,
             limit: config.ratelimit.limit,

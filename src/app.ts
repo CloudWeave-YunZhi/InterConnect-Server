@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { createNodeRecord, updateAdminPasswd } from './utils/genialtoken.js';
 import { logger } from './utils/log.js';
-import { getNodesPublicList, deleteNodeByServername } from './database/db.js';
+import { getNodesPublicList, deleteNodeByServername } from './utils/db.js';
 
 const version = '1.0.0';
 const program = new Command();
@@ -21,7 +21,7 @@ program
     .command('serve')
     .description('start InterConnect-Server')
     .action(async () => {
-        const { startServer } = await import('./web/server.js');
+        const { startServer } = await import('./server.js');
         console.info(`
   _____ _____      _____                          
  |_   _/ ____|    / ____|                         

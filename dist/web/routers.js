@@ -1,8 +1,8 @@
 import { app } from './server.js';
 import { config } from '../utils/initconfig.js';
 import { db } from '../database/initdatabase.js';
-import { adminAuth, safeVerify, createSession } from './middleware/auth.js';
-import createmgr from './routes/manager.js';
+import { adminAuth, safeVerify, createSession } from '../middleware/auth.js';
+import createmgr from '../router/managerRouter.js';
 import ratelimit from 'express-rate-limit';
 import { SqliteStore } from 'rate-limit-sqlite';
 import path from 'node:path';
