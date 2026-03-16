@@ -4,7 +4,7 @@ import { logger } from './utils/log.js';
 import { createServer } from 'http';
 import { WebSocketManager } from './services/wsService.js';
 import { httplog } from './middleware/httplog.js';
-import { NodeService } from './services/nodeService.js';
+import { createNodeService } from './services/nodeService.js';
 import { adminAuth } from './middleware/auth.js';
 import createmgr from './router/managerRouter.js';
 import { loginRouter } from './router/loginRouter.js';
@@ -15,6 +15,9 @@ import history from 'connect-history-api-fallback';
 
 export const app = express();
 
+const server = createServer(app);
+const wsManager = new WebSocketManager(server);
+export const NodeService = createNodeService(wsManager);
 /**
  * 启动服务器并挂载路由与 WebSocket
  * @returns {Promise<void>}
@@ -23,12 +26,9 @@ export async function startServer(): Promise<void> {
     try {
         app.set('trust proxy', 1);
         httplog();
-
+        
         app.use(express.json());
-
-        const server = createServer(app);
-        const wsManager = new WebSocketManager(server);
-        NodeService.setWebSocketManager(wsManager);
+        
 
         // 设置限速
         const limiter = ratelimit({
