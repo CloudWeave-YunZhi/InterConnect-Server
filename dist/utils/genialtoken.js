@@ -1,5 +1,5 @@
 import { randomBytes, createHash, randomUUID } from 'crypto';
-import { db } from '../database/initdatabase.js';
+import { db } from './initdatabase.js';
 import bcrypt from 'bcrypt';
 export function createNodeRecord(servername) {
     const plainToken = randomBytes(32).toString('hex');

@@ -1,7 +1,7 @@
 import express from 'express';
-import { NodeService } from '../../services/nodeService.js';
+import { NodeService } from '../services/nodeService.js';
 const router = express.Router();
-router.get('/keys', (req, res, next) => {
+router.get('/keys', (_, res) => {
     try {
         const result = NodeService.getKeys();
         res.json(result);
@@ -10,7 +10,7 @@ router.get('/keys', (req, res, next) => {
         res.status(500).json({ msg: 'internal server error' });
     }
 });
-router.post('/keys/:servername', (req, res, next) => {
+router.post('/keys/:servername', (req, res) => {
     try {
         const servername = req.params.servername;
         const result = NodeService.createKey(servername);
@@ -20,7 +20,7 @@ router.post('/keys/:servername', (req, res, next) => {
         res.status(500).json({ msg: 'internal server error' });
     }
 });
-router.delete('/keys/:servername', (req, res, next) => {
+router.delete('/keys/:servername', (req, res) => {
     try {
         const servername = req.params.servername;
         const result = NodeService.deleteKey(servername);
@@ -30,7 +30,7 @@ router.delete('/keys/:servername', (req, res, next) => {
         res.status(500).json({ msg: 'internal server error' });
     }
 });
-router.post('/kick/:servername', (req, res, next) => {
+router.post('/kick/:servername', (req, res) => {
     try {
         const servername = req.params.servername;
         const result = NodeService.kickNode(servername);
@@ -41,4 +41,4 @@ router.post('/kick/:servername', (req, res, next) => {
     }
 });
 export default router;
-//# sourceMappingURL=manager.js.map
+//# sourceMappingURL=managerRouter.js.map

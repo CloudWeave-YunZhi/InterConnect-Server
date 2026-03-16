@@ -1,7 +1,7 @@
 import DatabaseConstructor, { Database } from 'better-sqlite3';
 import path from 'path';
-import fs from 'fs';
-import { logger } from '../utils/log.js';
+import fs from 'fs-extra';
+import { logger } from './log.js';
 
 const DB_DIR = path.resolve(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'app.db');

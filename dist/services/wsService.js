@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { db } from '../database/initdatabase.js';
+import { db } from '../utils/initdatabase.js';
 import { logger } from '../utils/log.js';
-import { verifyNode } from './wsauth.js';
+import { verifyNode } from './wsAuth.js';
 export class WebSocketManager {
     wss;
     activeNodes = new Map();
@@ -147,4 +147,4 @@ export class WebSocketManager {
         this.wss.close();
     }
 }
-//# sourceMappingURL=websocket.js.map
+//# sourceMappingURL=wsService.js.map

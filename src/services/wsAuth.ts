@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { db } from '../database/initdatabase.js';
+import { db } from '../utils/initdatabase.js';
 
 interface NodeRow {
     uuid: string;

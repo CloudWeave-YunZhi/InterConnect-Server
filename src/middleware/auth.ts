@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
-import { db } from '../../database/initdatabase.js';
+import { db } from '../utils/initdatabase.js';
 import { Request, Response, NextFunction } from 'express';
 
 // --- Session 内存管理 ---
@@ -69,7 +69,7 @@ export const adminAuth = () => {
                 return next();
             }
         }
-        
+
         // 3. 均验证失败
         res.status(401).json({ error: 'Admin access denied or Session expired' });
     };
