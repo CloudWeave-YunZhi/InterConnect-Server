@@ -8,8 +8,7 @@ import { createNodeService } from './services/nodeService.js';
 import { adminAuth } from './middleware/auth.js';
 import createmgr from './router/managerRouter.js';
 import { loginRouter } from './router/loginRouter.js';
-import ratelimit from 'express-rate-limit';
-import { SqliteStore } from 'rate-limit-sqlite';
+import { limiter } from './middleware/rateLimit.js';
 import path from 'path';
 import history from 'connect-history-api-fallback';
 export const app = express();
@@ -21,16 +20,6 @@ export async function startServer() {
         app.set('trust proxy', 1);
         httplog();
         app.use(express.json());
-        const limiter = ratelimit({
-            windowMs: config.ratelimit.windowMs * 60 * 1000,
-            limit: config.ratelimit.limit,
-            message: config.ratelimit.message,
-            standardHeaders: 'draft-8',
-            store: new SqliteStore({
-                location: path.resolve('./data', 'app.db'),
-                prefix: 'limit'
-            })
-        });
         app.use('/manager', limiter, adminAuth(), createmgr);
         app.post('/login', limiter, loginRouter);
         app.use(history({

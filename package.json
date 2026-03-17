@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "interconnect-server",
   "version": "1.0.0",
-  "description": "InterConnect服务端-ICS 用于 Minecraft 服务器的实时 WebSocket API 服务，提供事件上报、密钥管理、控制台面板与 CLI 管理工具。",
+  "description": "InterConnect server for Minecraft with realtime WebSocket API, event reporting, key management and admin panel CLI.",
   "homepage": "https://github.com/CloudWeave-YunZhi/InterConnect-Server#readme",
   "bugs": {
     "url": "https://github.com/CloudWeave-YunZhi/InterConnect-Server/issues"
@@ -22,7 +22,6 @@
     "eslint:fix": "npx eslint src/**/*.ts --fix"
   },
   "dependencies": {
-    "@koa/router": "^15.4.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.6.2",
     "commander": "^14.0.3",
@@ -30,10 +29,6 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.0",
     "fs-extra": "^11.3.3",
-    "koa": "^3.1.2",
-    "koa-parser": "^1.0.8",
-    "koa-pino-logger": "^5.0.0",
-    "koa-static": "^5.0.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "pino-pretty": "^13.1.3",

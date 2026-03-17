@@ -8,8 +8,7 @@ import { createNodeService } from './services/nodeService.js';
 import { adminAuth } from './middleware/auth.js';
 import createmgr from './router/managerRouter.js';
 import { loginRouter } from './router/loginRouter.js';
-import ratelimit from 'express-rate-limit';
-import { SqliteStore } from 'rate-limit-sqlite';
+import { limiter } from './middleware/rateLimit.js';
 import path from 'path';
 import history from 'connect-history-api-fallback';
 
@@ -19,7 +18,7 @@ const server = createServer(app);
 const wsManager = new WebSocketManager(server);
 export const NodeService = createNodeService(wsManager);
 /**
- * 启动服务器并挂载路由与 WebSocket
+ * 启动服务器并挂载路由�?WebSocket
  * @returns {Promise<void>}
  */
 export async function startServer(): Promise<void> {
@@ -28,19 +27,6 @@ export async function startServer(): Promise<void> {
         httplog();
         
         app.use(express.json());
-        
-
-        // 设置限速
-        const limiter = ratelimit({
-            windowMs: config.ratelimit.windowMs * 60 * 1000,
-            limit: config.ratelimit.limit,
-            message: config.ratelimit.message,
-            standardHeaders: 'draft-8',
-            store: new SqliteStore({
-                location: path.resolve('./data', 'app.db'),
-                prefix: 'limit'
-            })
-        });
 
         // 管理路由
         app.use('/manager', limiter, adminAuth(), createmgr);
@@ -48,11 +34,11 @@ export async function startServer(): Promise<void> {
         // 登录路由
         app.post('/login', limiter, loginRouter);
 
-        // 把/admin下的所有请求重写到/admin/index.html
+        // �?admin下的所有请求重写到/admin/index.html
         app.use(history({
             index: '/admin/index.html'
         }));
-        // 挂载面板静态目录
+        // 挂载面板静态目�?
         app.use('/admin', express.static(path.join(process.cwd(), 'admin')));
         app.use((err: any, _: Request, res: Response) => {
             logger.error({ err }, 'Server error');
