@@ -7,10 +7,9 @@ import { httplog } from './middleware/httplog.js';
 import { createNodeService } from './services/nodeService.js';
 import { adminAuth } from './middleware/auth.js';
 import createmgr from './router/managerRouter.js';
+import adminPanelRouter from './router/adminPanelRouter.js';
 import { loginRouter } from './router/loginRouter.js';
 import { limiter } from './middleware/rateLimit.js';
-import path from 'path';
-import history from 'connect-history-api-fallback';
 export const app = express();
 const server = createServer(app);
 const wsManager = new WebSocketManager(server);
@@ -18,14 +17,11 @@ export const NodeService = createNodeService(wsManager);
 export async function startServer() {
     try {
         app.set('trust proxy', 1);
-        httplog();
+        app.use(httplog);
         app.use(express.json());
         app.use('/manager', limiter, adminAuth(), createmgr);
         app.post('/login', limiter, loginRouter);
-        app.use(history({
-            index: '/admin/index.html'
-        }));
-        app.use('/admin', express.static(path.join(process.cwd(), 'admin')));
+        app.use('/admin', adminPanelRouter);
         app.use((err, _, res) => {
             logger.error({ err }, 'Server error');
             if (!res.headersSent) {
