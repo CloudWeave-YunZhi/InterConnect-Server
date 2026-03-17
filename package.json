@@ -18,6 +18,8 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "dev": "npx tsx watch src/app.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "eslint": "npx eslint src/**/*.ts",
     "eslint:fix": "npx eslint src/**/*.ts --fix"
   },
@@ -44,11 +46,14 @@
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.3.0",
     "@types/pino-http": "^5.8.4",
+    "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
     "eslint": "^10.0.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

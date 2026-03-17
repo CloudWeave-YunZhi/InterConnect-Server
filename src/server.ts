@@ -16,11 +16,14 @@ export const app = express();
 const server = createServer(app);
 const wsManager = new WebSocketManager(server);
 export const NodeService = createNodeService(wsManager);
+let started = false;
 
 /**
  * 启动服务并挂载路由和 WebSocket
  */
 export async function startServer(): Promise<void> {
+    if (started) return;
+
     try {
         app.set('trust proxy', 1);
         app.use(httplog);
@@ -48,11 +51,38 @@ export async function startServer(): Promise<void> {
             res.status(404).json({ message: 'Not Fount' });
         });
 
-        server.listen(config.server.port, config.server.addr, () =>
-            logger.info(`The web server starts in http://${config.server.addr}:${config.server.port}`)
-        );
+        await new Promise<void>((resolve, reject) => {
+            server.once('error', reject);
+            server.listen(config.server.port, config.server.addr, () => {
+                const addr = server.address();
+                if (addr && typeof addr !== 'string') {
+                    logger.info(`The web server starts in http://${addr.address}:${addr.port}`);
+                } else {
+                    logger.info(`The web server starts in http://${config.server.addr}:${config.server.port}`);
+                }
+                started = true;
+                resolve();
+            });
+        });
     } catch (e: any) {
         logger.fatal({ e }, 'Web server failed to start:');
         process.exit(1);
     }
+}
+
+export async function stopServer(): Promise<void> {
+    if (!started) return;
+
+    wsManager.destroy();
+    await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+            if (err) return reject(err);
+            started = false;
+            resolve();
+        });
+    });
+}
+
+export function getHttpServer() {
+    return server;
 }
