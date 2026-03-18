@@ -57,12 +57,12 @@
       <el-table-column label="状态" width="120" align="center">
         <template #default="{ row }">
           <el-tag
-            :type="row.stat === 1 ? 'success' : 'info'"
+            :type="row.stat === true ? 'success' : 'info'"
             effect="light"
             size="small"
           >
             <el-icon v-if="row.stat === 1" class="is-loading"><Loading /></el-icon>
-            {{ row.stat === 1 ? '在线' : '离线' }}
+            {{ row.stat === true ? '在线' : '离线' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -76,7 +76,7 @@
       <el-table-column label="操作" width="200" align="center" fixed="right">
         <template #default="{ row }">
           <el-button
-            v-if="row.stat === 1"
+            v-if="row.stat === true"
             type="warning"
             size="small"
             :icon="CircleClose"
@@ -164,9 +164,20 @@ const handleCurrentChange = (val) => {
   currentPage.value = val
 }
 
-const formatDate = (timestamp) => {
-  if (!timestamp) return '-'
-  const date = new Date(timestamp * 1000)
+const formatDate = (value) => {
+  if (!value) return '-'
+
+  let date
+  if (typeof value === 'number') {
+    // 兼容秒级/毫秒级时间戳
+    date = new Date(value < 1e12 ? value * 1000 : value)
+  } else {
+    // 兼容 ISO 时间字符串，如 2026-02-27T14:29:51.098Z
+    date = new Date(value)
+  }
+
+  if (Number.isNaN(date.getTime())) return '-'
+
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',

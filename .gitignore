@@ -1,5 +1,8 @@
 node_modules
+server/node_modules
 data
-test.js
 .continueignore
 .continue
+dist
+server/dist
+admin

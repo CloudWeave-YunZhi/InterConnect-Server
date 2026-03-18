@@ -14,6 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      matrix:
+        include:
+          - target: api
+            dockerfile: ./docker/api.Dockerfile
+            image_suffix: ""
+          - target: ui
+            dockerfile: ./docker/nginx/Dockerfile
+            image_suffix: -ui
 
     steps:
       - name: Checkout repository
@@ -34,16 +43,17 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.IMAGE_NAME }}
+            ${{ env.IMAGE_NAME }}${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=raw,value=latest
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (${{ matrix.target }})
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

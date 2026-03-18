@@ -1,30 +1,33 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 
-const API_BASE_URL = /* import.meta.env.VITE_API_BASE_URL || */ '/'
+const API_BASE_STORAGE_KEY = 'admin_api_base_url'
+
+function getApiBaseUrl() {
+  return localStorage.getItem(API_BASE_STORAGE_KEY) || '/'
+}
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// 请求拦截器 - 添加 Token
+// 请求拦截器：自动附带 Token 和动态 baseURL
 apiClient.interceptors.request.use(
   (config) => {
+    config.baseURL = getApiBaseUrl()
     const token = localStorage.getItem('admin_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// 响应拦截器 - 处理错误
+// 响应拦截器：401 统一跳登录
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -38,7 +41,7 @@ apiClient.interceptors.response.use(
 
 export default apiClient
 
-// 登录 API
+// 登录
 export async function login(password) {
   try {
     const response = await apiClient.post('/login', { password })
@@ -47,7 +50,7 @@ export async function login(password) {
     if (error.response?.status === 401) {
       throw new Error('密码错误')
     } else if (error.response?.status === 429) {
-      throw new Error('请求太频繁，请稍后再试')
+      throw new Error('请求过于频繁，请稍后再试')
     } else {
       throw new Error(error.response?.data?.error || '登录失败')
     }

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
@@ -6,9 +6,9 @@
           <el-icon :size="48" color="#27ae60"><Connection /></el-icon>
         </div>
         <h1>InterConnect</h1>
-        <p>服务器管理面板</p>
+        <p>服务管理面板</p>
       </div>
-      
+
       <el-form
         ref="formRef"
         :model="formData"
@@ -26,7 +26,16 @@
             show-password
           />
         </el-form-item>
-        
+
+        <el-form-item prop="baseUrl">
+          <el-input
+            v-model="formData.baseUrl"
+            placeholder="请输入服务器链接（可选）"
+            :prefix-icon="Link"
+            size="large"
+          />
+        </el-form-item>
+
         <el-button
           type="primary"
           size="large"
@@ -34,16 +43,16 @@
           :loading="loading"
           @click="handleLogin"
         >
-          登 录
+          登录
         </el-button>
       </el-form>
-      
+
       <div class="login-footer">
         <p>安全访问 · 受保护区域</p>
       </div>
     </div>
-    
-    <!-- 装饰背景 -->
+
+    <!-- 背景装饰 -->
     <div class="bg-decoration bg-1"></div>
     <div class="bg-decoration bg-2"></div>
     <div class="bg-decoration bg-3"></div>
@@ -54,7 +63,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Lock, Connection } from '@element-plus/icons-vue'
+import { Lock, Link, Connection } from '@element-plus/icons-vue'
 import { login } from '../api'
 
 const router = useRouter()
@@ -62,7 +71,8 @@ const formRef = ref()
 const loading = ref(false)
 
 const formData = reactive({
-  password: ''
+  password: '',
+  baseUrl: localStorage.getItem('admin_api_base_url') || ''
 })
 
 const rules = {
@@ -74,13 +84,20 @@ const rules = {
 
 const handleLogin = async () => {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
     loading.value = true
-    
+
+    const trimmedBaseUrl = formData.baseUrl.trim()
+    if (trimmedBaseUrl) {
+      localStorage.setItem('admin_api_base_url', trimmedBaseUrl)
+    } else {
+      localStorage.removeItem('admin_api_base_url')
+    }
+
     const result = await login(formData.password)
-    
+
     if (result.success && result.token) {
       localStorage.setItem('admin_token', result.token)
       ElMessage.success('登录成功')

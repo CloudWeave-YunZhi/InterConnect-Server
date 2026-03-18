@@ -1,9 +1,11 @@
-src
 node_modules
-readme.md
-tsconfig.json
-eslint.config.js
+server/node_modules
+panel/node_modules
+dist
+server/dist
+panel/dist
 data
 .git
 .continueignore
-panel
+.continue
+.github
