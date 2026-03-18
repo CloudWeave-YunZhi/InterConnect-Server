@@ -2,6 +2,8 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 function normalizeBasePath(basePath) {
   if (!basePath) return '/'
   const withSlashPrefix = basePath.startsWith('/') ? basePath : `/${basePath}`
@@ -14,7 +16,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [vue()],
+    plugins: [vue(), cloudflare()],
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src')
@@ -34,5 +36,5 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       assetsDir: 'assets'
     }
-  }
+  };
 })
