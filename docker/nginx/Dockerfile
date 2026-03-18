@@ -22,4 +22,6 @@ RUN PANEL_BASE_PATH="/${PANEL_BASE_PATH#/}" \
     && sed -i "s|location /admin/ {|location ${PANEL_BASE_PATH}/ {|g" /etc/nginx/conf.d/default.conf \
     && sed -i "s|/admin/index.html;|${PANEL_BASE_PATH}/index.html;|g" /etc/nginx/conf.d/default.conf
 
+VOLUME ["/etc/nginx/conf.d"]
+
 EXPOSE 80
