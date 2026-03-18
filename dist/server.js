@@ -1,17 +1,15 @@
-import express from 'express';
+import Koa from 'koa';
+import { bodyParser } from '@koa/bodyparser';
+import { createServer } from 'http';
+import { httplog } from './middleware/httplog.js';
+import createmgr from './router/managerRouter.js';
+import loginRouter from './router/loginRouter.js';
+import { createNodeService } from './services/nodeService.js';
+import { WebSocketManager } from './services/wsService.js';
 import { config } from './utils/initconfig.js';
 import { logger } from './utils/log.js';
-import { createServer } from 'http';
-import { WebSocketManager } from './services/wsService.js';
-import { httplog } from './middleware/httplog.js';
-import { createNodeService } from './services/nodeService.js';
-import { adminAuth } from './middleware/auth.js';
-import createmgr from './router/managerRouter.js';
-import adminPanelRouter from './router/adminPanelRouter.js';
-import { loginRouter } from './router/loginRouter.js';
-import { limiter } from './middleware/rateLimit.js';
-export const app = express();
-const server = createServer(app);
+export const app = new Koa();
+const server = createServer(app.callback());
 const wsManager = new WebSocketManager(server);
 export const NodeService = createNodeService(wsManager);
 let started = false;
@@ -19,20 +17,27 @@ export async function startServer() {
     if (started)
         return;
     try {
-        app.set('trust proxy', 1);
-        app.use(httplog);
-        app.use(express.json());
-        app.use('/manager', limiter, adminAuth(), createmgr);
-        app.post('/login', limiter, loginRouter);
-        app.use('/admin', adminPanelRouter);
-        app.use((err, _, res) => {
-            logger.error({ err }, 'Server error');
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Internal server error' });
+        app.use(async (ctx, next) => {
+            try {
+                await next();
+            }
+            catch (error) {
+                ctx.status = 500;
+                ctx.body = { error: 'Internal server error' };
+                logger.error({ err: error }, 'Error processing request');
+                console.debug(ctx.request.body);
             }
         });
-        app.use((_, res) => {
-            res.status(404).json({ message: 'Not Fount' });
+        app.proxy = true;
+        app.use(bodyParser());
+        app.use(httplog);
+        app.use(createmgr.routes());
+        app.use(createmgr.allowedMethods());
+        app.use(loginRouter.routes());
+        app.use(loginRouter.allowedMethods());
+        app.use(async (ctx) => {
+            ctx.status = 404;
+            ctx.body = { error: '404 Not Found' };
         });
         await new Promise((resolve, reject) => {
             server.once('error', reject);

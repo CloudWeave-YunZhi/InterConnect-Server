@@ -1,32 +1,37 @@
-import { Response, Request } from 'express';
+import type { Context } from 'koa';
+import Router from '@koa/router';
 import { db } from '../utils/initdatabase.js';
-import { safeVerify, createSession } from '../middleware/auth.js';
+import { createSession, safeVerify } from '../middleware/auth.js';
 
-export function loginRouter(req: Request, res: Response) {
-    // 1. 检查 body 是否被解析（防止中间件挂载失败或 Content-Type 不对）
-    if (!req.body || typeof req.body !== 'object') {
-        // 返回 400 而不是 500，这是客户端的错
-        return res.status(400).json({ success: false, error: 'Invalid JSON body' });
+const router = new Router();
+
+router.post('/login', async (ctx: Context) => {
+    if (!ctx.request.body || typeof ctx.request.body !== 'object') {
+        ctx.status = 400;
+        ctx.body = { success: false, error: 'Invalid JSON body' };
+        return;
     }
 
-    const { password } = req.body;
-
-    // 1. 验证输入是否存在
+    const { password } = ctx.request.body as { password?: string };
+    console.log(password);
     if (!password) {
-        return res.status(400).json({ success: false, error: 'Password is required' });
+        ctx.status = 400;
+        ctx.body = { success: false, error: 'Password is required' };
+        return;
     }
 
-    const row = db.prepare('SELECT value FROM system_config WHERE key = ?')
+    const row = db
+        .prepare('SELECT value FROM system_config WHERE key = ?')
         .get('admin_key') as { value: string } | undefined;
 
-    // 2. 验证密码逻辑
     if (row?.value && safeVerify(password, row.value)) {
         const token = createSession();
-        // 成功路径：必须 return 确保逻辑终结
-        return res.json({ success: true, token });
+        ctx.body = { success: true, token };
+        return;
     }
 
-    // 3. 失败路径：如果上面的 if 没进去，统一走这里
-    // 这样就覆盖了所有路径，消灭了 TS 报错
-    return res.status(401).json({ success: false, error: 'Invalid password' });
-}
+    ctx.status = 401;
+    ctx.body = { success: false, error: 'Invalid password' };
+});
+
+export default router;

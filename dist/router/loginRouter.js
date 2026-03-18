@@ -1,19 +1,30 @@
+import Router from '@koa/router';
 import { db } from '../utils/initdatabase.js';
-import { safeVerify, createSession } from '../middleware/auth.js';
-export function loginRouter(req, res) {
-    if (!req.body || typeof req.body !== 'object') {
-        return res.status(400).json({ success: false, error: 'Invalid JSON body' });
+import { createSession, safeVerify } from '../middleware/auth.js';
+const router = new Router();
+router.post('/login', async (ctx) => {
+    if (!ctx.request.body || typeof ctx.request.body !== 'object') {
+        ctx.status = 400;
+        ctx.body = { success: false, error: 'Invalid JSON body' };
+        return;
     }
-    const { password } = req.body;
+    const { password } = ctx.request.body;
+    console.log(password);
     if (!password) {
-        return res.status(400).json({ success: false, error: 'Password is required' });
+        ctx.status = 400;
+        ctx.body = { success: false, error: 'Password is required' };
+        return;
     }
-    const row = db.prepare('SELECT value FROM system_config WHERE key = ?')
+    const row = db
+        .prepare('SELECT value FROM system_config WHERE key = ?')
         .get('admin_key');
     if (row?.value && safeVerify(password, row.value)) {
         const token = createSession();
-        return res.json({ success: true, token });
+        ctx.body = { success: true, token };
+        return;
     }
-    return res.status(401).json({ success: false, error: 'Invalid password' });
-}
+    ctx.status = 401;
+    ctx.body = { success: false, error: 'Invalid password' };
+});
+export default router;
 //# sourceMappingURL=loginRouter.js.map

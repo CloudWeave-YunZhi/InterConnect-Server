@@ -1,44 +1,22 @@
-import express from 'express';
+import Router from '@koa/router';
 import { NodeService } from '../server.js';
-const router = express.Router();
-router.get('/keys', (_, res) => {
-    try {
-        const result = NodeService.getKeys();
-        res.json(result);
-    }
-    catch (e) {
-        res.status(500).json({ msg: 'internal server error' });
-    }
+import { limiter } from '../middleware/rateLimit.js';
+import { adminAuth } from '../middleware/auth.js';
+const router = new Router({ prefix: '/manager' });
+router.use(limiter);
+router.use(adminAuth);
+router.get('/keys', (ctx) => {
+    ctx.body = NodeService.getKeys();
 });
-router.post('/keys/:servername', (req, res) => {
-    try {
-        const servername = req.params.servername;
-        const result = NodeService.createKey(servername);
-        res.status(201).json(result);
-    }
-    catch (e) {
-        res.status(500).json({ msg: 'internal server error' });
-    }
+router.post('/keys/:servername', (ctx) => {
+    ctx.status = 201;
+    ctx.body = NodeService.createKey(ctx.params.servername);
 });
-router.delete('/keys/:servername', (req, res) => {
-    try {
-        const servername = req.params.servername;
-        const result = NodeService.deleteKey(servername);
-        res.json(result);
-    }
-    catch (e) {
-        res.status(500).json({ msg: 'internal server error' });
-    }
+router.delete('/keys/:servername', (ctx) => {
+    ctx.body = NodeService.deleteKey(ctx.params.servername);
 });
-router.post('/kick/:servername', (req, res) => {
-    try {
-        const servername = req.params.servername;
-        const result = NodeService.kickNode(servername);
-        res.json(result);
-    }
-    catch (e) {
-        res.status(500).json({ msg: 'internal server error' });
-    }
+router.post('/kick/:servername', (ctx) => {
+    ctx.body = NodeService.kickNode(ctx.params.servername);
 });
 export default router;
 //# sourceMappingURL=managerRouter.js.map

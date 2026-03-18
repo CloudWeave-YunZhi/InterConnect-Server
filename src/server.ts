@@ -1,54 +1,56 @@
-import express, { Response, Request } from 'express';
+﻿import Koa from 'koa';
+import { bodyParser } from '@koa/bodyparser';
+import { createServer } from 'http';
+import { httplog } from './middleware/httplog.js';
+import createmgr from './router/managerRouter.js';
+import loginRouter from './router/loginRouter.js';
+import { createNodeService } from './services/nodeService.js';
+import { WebSocketManager } from './services/wsService.js';
 import { config } from './utils/initconfig.js';
 import { logger } from './utils/log.js';
-import { createServer } from 'http';
-import { WebSocketManager } from './services/wsService.js';
-import { httplog } from './middleware/httplog.js';
-import { createNodeService } from './services/nodeService.js';
-import { adminAuth } from './middleware/auth.js';
-import createmgr from './router/managerRouter.js';
-import adminPanelRouter from './router/adminPanelRouter.js';
-import { loginRouter } from './router/loginRouter.js';
-import { limiter } from './middleware/rateLimit.js';
 
-export const app = express();
+export const app = new Koa();
 
-const server = createServer(app);
+// 创建ws
+const server = createServer(app.callback());
 const wsManager = new WebSocketManager(server);
 export const NodeService = createNodeService(wsManager);
 let started = false;
 
-/**
- * 启动服务并挂载路由和 WebSocket
- */
 export async function startServer(): Promise<void> {
     if (started) return;
 
     try {
-        app.set('trust proxy', 1);
-        app.use(httplog);
-
-        app.use(express.json());
-
-        // 管理路由
-        app.use('/manager', limiter, adminAuth(), createmgr);
-
-        // 登录路由
-        app.post('/login', limiter, loginRouter);
-
-        // 挂载 admin SPA 面板路由
-        app.use('/admin', adminPanelRouter);
-
-        app.use((err: any, _: Request, res: Response) => {
-            logger.error({ err }, 'Server error');
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Internal server error' });
+        // 全局错误处理
+        app.use(async (ctx, next) => {
+            try {
+                await next();
+            } catch (error) {
+                ctx.status = 500;
+                ctx.body = { error: 'Internal server error' };
+                logger.error({ err: error }, 'Error processing request');
+                console.debug(ctx.request.body);
             }
         });
+        
+        // 信任nginx等代理
+        app.proxy = true;
+        // JSON解析
+        app.use(bodyParser());
+        // 请求日志
+        app.use(httplog);
 
-        app.use((_, res) => {
-            // 404 处理
-            res.status(404).json({ message: 'Not Fount' });
+        // 管理路由
+        app.use(createmgr.routes());
+        app.use(createmgr.allowedMethods());
+        // 登录路由
+        app.use(loginRouter.routes());
+        app.use(loginRouter.allowedMethods());
+
+        // 404处理
+        app.use(async (ctx) => {
+            ctx.status = 404;
+            ctx.body = { error: '404 Not Found' };
         });
 
         await new Promise<void>((resolve, reject) => {

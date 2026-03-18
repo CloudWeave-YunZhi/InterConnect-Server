@@ -25,25 +25,27 @@ setInterval(() => {
             sessions.delete(token);
     }
 }, 10 * 60 * 1000);
-export const adminAuth = () => {
-    return (req, res, next) => {
-        const authHeader = req.headers['authorization'];
-        if (authHeader?.startsWith('Bearer ')) {
-            const sessionToken = authHeader.substring(7);
-            if (isValidSession(sessionToken)) {
-                return next();
-            }
+export const adminAuth = async (ctx, next) => {
+    const authHeader = ctx.get('authorization');
+    if (authHeader.startsWith('Bearer ')) {
+        const sessionToken = authHeader.substring(7);
+        if (isValidSession(sessionToken)) {
+            await next();
+            return;
         }
-        const adminToken = req.headers['x-admin-token'];
-        if (typeof adminToken === 'string') {
-            const row = db.prepare('SELECT value FROM system_config WHERE key = ?')
-                .get('admin_key');
-            if (row?.value && safeVerify(adminToken, row.value)) {
-                return next();
-            }
+    }
+    const adminToken = ctx.get('x-admin-token');
+    if (adminToken) {
+        const row = db
+            .prepare('SELECT value FROM system_config WHERE key = ?')
+            .get('admin_key');
+        if (row?.value && safeVerify(adminToken, row.value)) {
+            await next();
+            return;
         }
-        res.status(401).json({ error: 'Admin access denied or Session expired' });
-    };
+    }
+    ctx.status = 401;
+    ctx.body = { error: 'Admin access denied or Session expired' };
 };
 export function safeVerify(plain, hash) {
     try {

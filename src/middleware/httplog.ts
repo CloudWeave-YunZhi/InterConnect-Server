@@ -1,26 +1,46 @@
-import pino from 'pino';
-import { pinoHttp } from 'pino-http';
+import type { Context, Next } from 'koa';
 import { logger } from '../utils/log.js';
 
-export const httplog = pinoHttp({
-    logger,
-    customSuccessMessage: () => 'Request completed',
-    customLogLevel: (_req, res) => {
-        if (res.statusCode >= 500) return 'error';
-        if (res.statusCode >= 400) return 'warn';
-        return 'info';
-    },
-    customSuccessObject: (req, res, val) => ({
-        ip: req.socket.remoteAddress,
-        method: req.method,
-        path: req.url,
-        status: res.statusCode,
-        ms: `${val.responseTime}ms`,
-        size: res.getHeader('content-length') || 0,
-    }),
-    serializers: {
-        req: () => undefined,
-        res: () => undefined,
-        err: pino.stdSerializers.err,
-    },
-});
+function toByteLength(value: string): number {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function getLevel(status: number): 'info' | 'warn' | 'error' {
+    if (status >= 500) return 'error';
+    if (status >= 400) return 'warn';
+    return 'info';
+}
+
+export async function httplog(ctx: Context, next: Next): Promise<void> {
+    const startedAt = process.hrtime.bigint();
+    const requestSize = toByteLength(ctx.get('content-length'));
+
+    let logged = false;
+    const logOnDone = () => {
+        if (logged) return;
+        logged = true;
+
+        const status = ctx.status || ctx.res.statusCode || 200;
+        const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        const responseSize = toByteLength(ctx.response.get('content-length'));
+
+        logger[getLevel(status)](
+            {
+                ip: ctx.ip,
+                method: ctx.method,
+                path: ctx.originalUrl,
+                status,
+                ms: `${elapsedMs.toFixed(1)}ms`,
+                requestSize,
+                responseSize,
+            },
+            'Request completed'
+        );
+    };
+
+    ctx.res.once('finish', logOnDone);
+    ctx.res.once('close', logOnDone);
+
+    await next();
+}

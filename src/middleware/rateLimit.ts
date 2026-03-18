@@ -1,15 +1,14 @@
-import ratelimit from 'express-rate-limit';
-import { SqliteStore } from 'rate-limit-sqlite';
-import path from 'path';
+import ratelimit from 'koa-ratelimit';
 import { config } from '../utils/initconfig.js';
 
+const rateLimitStore = new Map();
+
 export const limiter = ratelimit({
-    windowMs: config.ratelimit.windowMs * 60 * 1000,
-    limit: config.ratelimit.limit,
-    message: config.ratelimit.message,
-    standardHeaders: 'draft-8',
-    store: new SqliteStore({
-        location: path.resolve('./data', 'app.db'),
-        prefix: 'limit'
-    })
+    driver: 'memory',
+    db: rateLimitStore,
+    duration: config.ratelimit.windowMs * 60 * 1000,
+    max: config.ratelimit.limit,
+    errorMessage: config.ratelimit.message,
+    id: (ctx) => ctx.ip,
+    namespace: 'limit',
 });
