@@ -1,7 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { Server } from 'http';
-import { db } from '../utils/initdatabase.js';
 import { logger } from '../utils/log.js';
 import { verifyNode } from './wsAuth.js';
 
@@ -20,8 +19,6 @@ interface ExtWebSocket extends WebSocket {
 export class WebSocketManager {
     private wss: WebSocketServer;
     private activeNodes = new Map<string, ExtWebSocket>();
-    private setNodeOnline = db.prepare('UPDATE nodes SET stat = 1 WHERE uuid = ?');
-    private setNodeOffline = db.prepare('UPDATE nodes SET stat = 0 WHERE uuid = ?');
     private EVENTS = new Set(['player_join', 'player_quit', 'player_death', 'player_chat', 'player_message']);
     private heartbeatInterval!: NodeJS.Timeout;
 
@@ -42,7 +39,7 @@ export class WebSocketManager {
                     logger.warn({ uuid, name: ws.servername }, 'Node heartbeat timeout, terminating...');
                     // 如果节点在 30 秒内没有任何响应，则强制断开并清理
                     this.activeNodes.delete(uuid);
-                    this.setNodeOnline.run(uuid); // 确保数据库状态更新
+        
                     return ws.terminate();
                 }
 
@@ -94,7 +91,6 @@ export class WebSocketManager {
             ws.uuid       = uuid;
             ws.servername = node.servername;
             this.activeNodes.set(uuid, ws);
-            this.setNodeOnline.run(uuid);
 
             logger.info({ uuid, name: node.servername, ip: clientIp }, 'Node connected');
 
@@ -145,7 +141,6 @@ export class WebSocketManager {
             // --- Disconnect ---
             ws.on('close', () => {
                 this.activeNodes.delete(ws.uuid);
-                this.setNodeOffline.run(ws.uuid);
                 logger.info({ uuid: ws.uuid, name: ws.servername }, 'Node disconnected');
             });
 
@@ -189,7 +184,6 @@ export class WebSocketManager {
             if (ws) {
                 ws.terminate();
                 this.activeNodes.delete(targetUuid);
-                this.setNodeOffline.run(targetUuid);
                 logger.info({ servername, uuid: targetUuid }, 'Old node connection kicked');
                 return true;
             }
