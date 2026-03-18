@@ -6,6 +6,13 @@ function getApiBaseUrl() {
   return localStorage.getItem(API_BASE_STORAGE_KEY) || '/'
 }
 
+function getAppPath(path) {
+  const base = import.meta.env.BASE_URL || '/'
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const normalizedPath = path.replace(/^\/+/, '')
+  return `${normalizedBase}${normalizedPath}`
+}
+
 const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
   timeout: 10000,
@@ -33,7 +40,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
-      window.location.href = '/admin/login'
+      window.location.href = getAppPath('/login')
     }
     return Promise.reject(error)
   }
