@@ -20,7 +20,7 @@ interface ExtWebSocket extends WebSocket {
 export class WebSocketManager {
     private wss: WebSocketServer;
     private activeNodes = new Map<string, ExtWebSocket>();
-    private EVENTS = new Set(['player_join', 'player_quit', 'player_death', 'player_chat', 'player_message']);
+    private EVENTS = new Set(['player_join', 'player_quit', 'player_death', 'player_chat', 'player_message', 'qq_message']);
     private heartbeatInterval!: NodeJS.Timeout;
 
     constructor(server: Server) {
