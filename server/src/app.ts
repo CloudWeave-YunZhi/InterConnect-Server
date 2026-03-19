@@ -1,9 +1,11 @@
 import { Command } from 'commander';
+import fs from 'fs-extra';
+import path from 'node:path';
 import { createNodeRecord, updateAdminPasswd } from './utils/genialtoken.js';
 import { logger } from './utils/log.js';
 import { getNodesPublicList, deleteNodeByServername } from './utils/db.js';
 
-const version = '1.0.1';
+const version = fs.readJSONSync(path.resolve('./package.json')).version;
 const program = new Command();
 
 program

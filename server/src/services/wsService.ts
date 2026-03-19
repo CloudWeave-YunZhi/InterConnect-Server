@@ -9,6 +9,7 @@ import { verifyNode } from './wsAuth.js';
 // ---------------------------------------------------------------------------
 interface ExtWebSocket extends WebSocket {
     isAlive: boolean;
+    missedHeartbeats: number;
     uuid: string;
     servername: string;
 }
@@ -30,15 +31,13 @@ export class WebSocketManager {
 
     private setupWebSocket(): void {
         /**
-         * 心跳保活定时器
-         * 每 30 秒探测一次所有连接的节点
+         * 心跳保活定时，每 30 秒探测一次所有连接的节点
          */
         this.heartbeatInterval = setInterval(() => {
             this.activeNodes.forEach((ws, uuid) => {
                 if (ws.isAlive === false) {
                     logger.warn({ uuid, name: ws.servername }, 'Node heartbeat timeout, terminating...');
-                    // 如果节点在 30 秒内没有任何响应，则强制断开并清理
-                    this.activeNodes.delete(uuid);
+                    // 如果节点 30 秒内没有任何响应，则强制断开并清理                    this.activeNodes.delete(uuid);
         
                     return ws.terminate();
                 }
@@ -49,8 +48,8 @@ export class WebSocketManager {
                 // 1. 发送协议层 Ping (标准 WebSocket 行为)
                 ws.ping();
 
-                // 2. 发送业务层心跳包 (适配 Java 插件的 onMessage 逻辑)
-                // 插件收到此 JSON 后会触发 onMessage，从而将插件侧的 isAlive 设为 true
+                // 2. 发送业务层心跳(适配 Java 插件onMessage 逻辑)
+                // 插件收到JSON 后会触发 onMessage，从而将插件侧的 isAlive 设为 true
                 ws.send(JSON.stringify({
                     type: 'heartbeat',
                     time: Date.now(),
@@ -67,27 +66,28 @@ export class WebSocketManager {
             const token = req.headers['x-token'] as string | undefined;
 
             if (!uuid || !token) {
-                logger.warn({ ip: clientIp }, 'WS rejected – missing x-uuid or x-token header');
+                logger.warn({ ip: clientIp }, 'WS rejected missing x-uuid or x-token header');
                 ws.close(1008, 'Unauthorized');
                 return;
             }
 
             const node = verifyNode(uuid, token);
             if (!node) {
-                logger.warn({ ip: clientIp, uuid }, 'WS rejected – invalid uuid or token');
+                logger.warn({ ip: clientIp, uuid }, 'WS rejected invalid uuid or token');
                 ws.close(1008, 'Unauthorized');
                 return;
             }
 
             // --- Conflict check ---
             if (this.activeNodes.has(uuid)) {
-                logger.warn({ uuid, ip: clientIp }, 'WS rejected – uuid already connected');
+                logger.warn({ uuid, ip: clientIp }, 'WS rejected uuid already connected');
                 ws.close(1008, 'Already connected');
                 return;
             }
 
             // --- Bind ---
             ws.isAlive    = true;
+            ws.missedHeartbeats = 0;
             ws.uuid       = uuid;
             ws.servername = node.servername;
             this.activeNodes.set(uuid, ws);
@@ -97,12 +97,13 @@ export class WebSocketManager {
             // 监听 Pong 响应
             ws.on('pong', () => {
                 ws.isAlive = true;
+                ws.missedHeartbeats = 0;
             });
 
             // --- Messages ---
             ws.on('message', (rawData) => {
-                // 收到任何消息说明客户端还活着
                 ws.isAlive = true;
+                ws.missedHeartbeats = 0;
 
                 try {
                     const packet = JSON.parse(rawData.toString());
@@ -149,7 +150,7 @@ export class WebSocketManager {
             });
         });
 
-        // 当 WSS 关闭时清理定时器
+        // WSS 关闭时清理定时器
         this.wss.on('close', () => {
             clearInterval(this.heartbeatInterval);
         });
@@ -207,3 +208,4 @@ export class WebSocketManager {
         return false;
     }
 }
+
