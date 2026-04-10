@@ -1,5 +1,5 @@
 import { db } from './initdatabase.js';
-import { NodePublicInfo } from '../types/index.js';
+import type { NodePublicInfo } from '../types/index.js';
 
 
 export function getNodesPublicList(): NodePublicInfo[] {

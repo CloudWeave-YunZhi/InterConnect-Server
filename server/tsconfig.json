@@ -15,6 +15,7 @@
     "sourceMap": true,
     "removeComments": true,
     "noUnusedLocals": true,
+    "verbatimModuleSyntax": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,

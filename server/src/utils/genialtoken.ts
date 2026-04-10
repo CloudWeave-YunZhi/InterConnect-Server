@@ -1,5 +1,5 @@
 import { randomBytes, createHash, randomUUID } from 'crypto';
-import { NodeRecord } from '../types/index.js';
+import type { NodeRecord } from '../types/index.js';
 import { db } from './initdatabase.js';
 import bcrypt from 'bcrypt';
 

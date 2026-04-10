@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { AppConfig } from 'src/types/index.js';
+import { type AppConfig } from 'src/types/index.js';
 
 /**
  * 初始化配置，应在应用启动最早期调用一次
